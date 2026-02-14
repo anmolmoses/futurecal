@@ -37,6 +37,11 @@ export const KEYPAD_LAYOUT: KeyConfig[][] = [
   ],
 ];
 
+// Virtual keys not on the visual keypad but reachable via keyboard
+export const VIRTUAL_KEYS: KeyConfig[] = [
+  { id: 'fn-backspace', label: '⌫', type: KeyType.Function, value: 'Backspace', ariaLabel: 'Backspace' },
+];
+
 // Keyboard key → KeyConfig id mapping
 export const KEYBOARD_MAP: Record<string, string> = {
   '0': 'num-0', '1': 'num-1', '2': 'num-2', '3': 'num-3', '4': 'num-4',
