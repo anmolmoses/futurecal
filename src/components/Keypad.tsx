@@ -2,11 +2,11 @@
 // NEBULA CALC — Keypad Component
 // ============================================
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { THEME } from '../config/theme';
 import { ENTRANCE } from '../config/animations';
 import { KEYPAD_LAYOUT } from '../config/keys';
-import type { KeypadProps } from '../types';
+import type { KeyConfig, KeypadProps } from '../types';
 import Button from './Button';
 
 /**
@@ -14,18 +14,31 @@ import Button from './Button';
  * Iterates KEYPAD_LAYOUT rows and passes staggered entrance delay to each Button.
  */
 const Keypad: React.FC<KeypadProps> = ({ onKeyPress, activeKey, disabled }) => {
+  const handleKeyPress = useCallback(
+    (key: KeyConfig) => {
+      if (disabled) return;
+      onKeyPress(key);
+    },
+    [onKeyPress, disabled]
+  );
+
   return (
     <div
-      style={styles.grid}
+      style={{
+        ...styles.grid,
+        pointerEvents: disabled ? 'none' : undefined,
+        opacity: disabled ? 0.5 : 1,
+      }}
       role="group"
       aria-label="Calculator keypad"
+      aria-disabled={disabled}
     >
       {KEYPAD_LAYOUT.map((row, rowIndex) =>
         row.map((key, colIndex) => (
           <Button
             key={key.id}
             config={key}
-            onPress={onKeyPress}
+            onPress={handleKeyPress}
             isActive={activeKey === key.id}
             entranceDelay={
               (rowIndex * 4 + colIndex) * ENTRANCE.buttonStagger.duration
