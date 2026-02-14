@@ -42,6 +42,12 @@ export const VIRTUAL_KEYS: KeyConfig[] = [
   { id: 'fn-backspace', label: '⌫', type: KeyType.Function, value: 'Backspace', ariaLabel: 'Backspace' },
 ];
 
+// All keys combined — visual + virtual — for lookup maps
+export const ALL_KEYS: KeyConfig[] = [
+  ...KEYPAD_LAYOUT.flat(),
+  ...VIRTUAL_KEYS,
+];
+
 // Keyboard key → KeyConfig id mapping
 export const KEYBOARD_MAP: Record<string, string> = {
   '0': 'num-0', '1': 'num-1', '2': 'num-2', '3': 'num-3', '4': 'num-4',
