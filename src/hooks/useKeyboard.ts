@@ -1,83 +1,108 @@
-// ============================================
-// NEBULA CALC — useKeyboard Hook
-// ============================================
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { KeyConfig, UseKeyboardReturn } from '../types';
-import { KEYBOARD_MAP, KEYPAD_LAYOUT } from '../config/keys';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { KeyConfig, KeyType, Operation, CalculatorAction, UseKeyboardReturn } from '../types';
+import { ALL_KEYS, KEYBOARD_MAP } from '../config/keys';
 
-// Flatten KEYPAD_LAYOUT for quick lookup by id
-const ALL_KEYS: KeyConfig[] = KEYPAD_LAYOUT.flat();
-const KEY_BY_ID = new Map<string, KeyConfig>(ALL_KEYS.map(k => [k.id, k]));
-
-// Modifier keys to ignore
-const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab']);
+/**
+ * Maps a KeyConfig to the appropriate CalculatorAction.
+ */
+function keyToAction(key: KeyConfig): CalculatorAction | null {
+  switch (key.type) {
+    case KeyType.Number:
+      return { type: 'INPUT_DIGIT', digit: key.value };
+    case KeyType.Decimal:
+      return { type: 'INPUT_DECIMAL' };
+    case KeyType.Equals:
+      return { type: 'CALCULATE' };
+    case KeyType.Operation:
+      return { type: 'INPUT_OPERATION', operation: key.value as Operation };
+    case KeyType.Function:
+      switch (key.value) {
+        case 'AC':
+          return { type: 'CLEAR' };
+        case 'Backspace':
+          return { type: 'BACKSPACE' };
+        case '±':
+          return { type: 'NEGATE' };
+        case '%':
+          return { type: 'PERCENT' };
+        default:
+          return null;
+      }
+    default:
+      return null;
+  }
+}
 
 interface UseKeyboardOptions {
-  onKeyPress: (key: KeyConfig) => void;
+  /** Dispatch a calculator action */
+  dispatch: React.Dispatch<CalculatorAction>;
+  /** Callback when a key is visually "pressed" (for sound, ripple, etc.) */
+  onKeyPress?: (key: KeyConfig) => void;
+  /** Disable keyboard handling (e.g. during animation) */
+  disabled?: boolean;
 }
 
 /**
- * Keyboard listener hook.
- * Maps physical key presses to calculator KeyConfig and triggers onKeyPress.
- * Returns activeKey (id of currently held key) for visual highlight.
- * Prevents key repeat, ignores modifier keys.
+ * Hook that maps physical keyboard events to calculator actions.
+ * Uses ALL_KEYS (visual keypad + virtual keys like backspace) so every
+ * mapped keyboard shortcut resolves to a valid KeyConfig.
  */
-export function useKeyboard({ onKeyPress }: UseKeyboardOptions): UseKeyboardReturn {
+export function useKeyboard({ dispatch, onKeyPress, disabled = false }: UseKeyboardOptions): UseKeyboardReturn {
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
-  // Track currently pressed keys to prevent repeat firing
-  const pressedRef = useRef<Set<string>>(new Set());
-
-  // Stable ref for the callback to avoid re-attaching listeners
-  const onKeyPressRef = useRef(onKeyPress);
-  onKeyPressRef.current = onKeyPress;
-
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Ignore modifier keys
-    if (MODIFIER_KEYS.has(e.key)) return;
-
-    // Ignore if key is already pressed (prevent repeat)
-    if (pressedRef.current.has(e.key)) return;
-
-    const keyId = KEYBOARD_MAP[e.key];
-    if (!keyId) return;
-
-    const keyConfig = KEY_BY_ID.get(keyId);
-    if (!keyConfig) return;
-
-    // Prevent default browser behavior (e.g. '/' opening search)
-    e.preventDefault();
-
-    // Mark as pressed
-    pressedRef.current.add(e.key);
-
-    // Set active key for visual highlight
-    setActiveKey(keyId);
-
-    // Fire callback
-    onKeyPressRef.current(keyConfig);
-  }, []);
-
-  const handleKeyUp = useCallback((e: KeyboardEvent) => {
-    // Remove from pressed set
-    pressedRef.current.delete(e.key);
-
-    // Clear active key if this was the one being highlighted
-    const keyId = KEYBOARD_MAP[e.key];
-    if (keyId) {
-      setActiveKey(prev => (prev === keyId ? null : prev));
+  // Build id → KeyConfig lookup from ALL_KEYS (includes VIRTUAL_KEYS)
+  const KEY_BY_ID = useMemo(() => {
+    const map = new Map<string, KeyConfig>();
+    for (const key of ALL_KEYS) {
+      map.set(key.id, key);
     }
+    return map;
   }, []);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (disabled) return;
+
+      const keyId = KEYBOARD_MAP[e.key];
+      if (!keyId) return;
+
+      // Prevent default browser behaviour for mapped keys
+      e.preventDefault();
+
+      const keyConfig = KEY_BY_ID.get(keyId);
+      if (!keyConfig) return;
+
+      // Visual feedback — highlight the key
+      setActiveKey(keyId);
+
+      // Dispatch the calculator action
+      const action = keyToAction(keyConfig);
+      if (action) {
+        dispatch(action);
+      }
+
+      // Notify for sound / ripple effects
+      onKeyPress?.(keyConfig);
+    },
+    [disabled, dispatch, onKeyPress, KEY_BY_ID],
+  );
+
+  const handleKeyUp = useCallback(
+    (e: KeyboardEvent) => {
+      const keyId = KEYBOARD_MAP[e.key];
+      if (keyId) {
+        setActiveKey((current) => (current === keyId ? null : current));
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      // Clear pressed state on unmount
-      pressedRef.current.clear();
     };
   }, [handleKeyDown, handleKeyUp]);
 
